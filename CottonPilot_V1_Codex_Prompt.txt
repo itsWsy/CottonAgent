@@ -1,0 +1,951 @@
+﻿你是一名资深全栈工程师和 AI Agent 应用工程师。请在当前仓库中实现一个可运行、可演示、适合前端实习简历展示的 V1 项目。
+
+# 一、项目概述
+
+项目名称：棉智策（CottonPilot）
+项目定位：面向棉花种植场景的农事推荐智能体平台。
+
+用户可以创建棉田档案、录入历史农事操作、选择当前生育阶段、症状和天气标签，然后发起 Agent 分析任务。系统通过工作流依次读取棉田档案、读取历史操作、检索本地棉花领域知识、执行下一步农事推荐、生成 7 天计划，并通过 SSE 将执行步骤实时推送给前端。用户可以查看推荐依据并接受或拒绝方案。
+
+该版本重点体现：
+1. Vue3 前端工程能力；
+2. Agent 执行过程可视化；
+3. SSE 实时任务状态；
+4. Pinia 复杂状态管理；
+5. 推荐结果的结构化展示；
+6. FastAPI 与工作流编排；
+7. 项目可以在没有大模型 API Key 的情况下完整运行。
+
+# 二、重要开发原则
+
+1. 不要只生成页面壳子、静态 Mock 页面或伪代码，必须实现可运行的前后端闭环。
+2. 不要询问我确认，先检查当前仓库；如果仓库为空，直接创建完整项目。
+3. 每完成一个阶段都运行必要的检查、测试或构建，发现错误立即修复。
+4. 使用清晰、可维护的代码，不要把所有逻辑堆在单个文件。
+5. 所有接口、数据结构、前端类型和 SSE 事件保持一致。
+6. V1 不实现图片识别、不训练深度学习模型、不接入向量数据库、不使用 Redis、不实现 MCP、不做多 Agent。
+7. 不生成任何具体农药名称、剂量或自动执行建议。所有推荐只用于教学演示，并在界面明显位置提示“结果仅供辅助参考，实际农事操作需由专业人员确认”。
+8. 不依赖大模型也必须运行。大模型调用是可选增强项，缺少配置或调用失败时必须自动使用模板生成最终说明。
+9. 优先保证 Windows 环境可以启动，同时兼容 macOS/Linux。
+10. UI 使用中文，代码变量使用清晰的英文命名。
+
+# 三、技术栈
+
+## 前端
+- Vue 3
+- TypeScript
+- Vite
+- Vue Router
+- Pinia
+- Element Plus
+- SCSS
+- Axios
+- ECharts
+- @microsoft/fetch-event-source（用于携带 Authorization 请求头并接收 SSE）
+- Vitest（至少为 Agent 状态更新逻辑编写基础测试）
+
+## 后端
+- Python 3.11+
+- FastAPI
+- Uvicorn
+- SQLAlchemy 2.x
+- SQLite
+- Pydantic 2.x
+- PyJWT
+- LangGraph：优先使用当前环境中可安装的稳定版本实现节点工作流；如果具体 API 版本不兼容，允许用独立 WorkflowService 保留相同的节点、状态和执行语义，但不得删除 Agent 工作流和步骤编排。
+- httpx（可选的大模型兼容接口调用）
+- pytest
+
+# 四、仓库结构
+
+使用单仓库结构：
+
+cotton-pilot/
+├── frontend/
+├── backend/
+├── README.md
+├── .gitignore
+└── docs/
+    └── api.md
+
+如果当前仓库本身就是项目根目录，则直接在当前目录创建 frontend、backend、docs。
+
+# 五、前端目录要求
+
+frontend/src/
+├── api/
+│   ├── auth.ts
+│   ├── fields.ts
+│   ├── dashboard.ts
+│   └── agent.ts
+├── components/
+│   ├── common/
+│   │   ├── PageHeader.vue
+│   │   ├── EmptyState.vue
+│   │   ├── StatusTag.vue
+│   │   └── LoadingCard.vue
+│   ├── field/
+│   │   ├── FieldFormDialog.vue
+│   │   ├── FieldCard.vue
+│   │   ├── FarmRecordForm.vue
+│   │   └── FarmRecordTimeline.vue
+│   ├── agent/
+│   │   ├── AgentInputPanel.vue
+│   │   ├── AgentStepList.vue
+│   │   ├── AgentStepItem.vue
+│   │   ├── ToolResultDrawer.vue
+│   │   └── AgentAnswer.vue
+│   └── recommendation/
+│       ├── RecommendationCard.vue
+│       ├── RecommendationList.vue
+│       ├── FarmPlanTimeline.vue
+│       └── EvidenceDrawer.vue
+├── layouts/
+│   └── BasicLayout.vue
+├── router/
+│   └── index.ts
+├── stores/
+│   ├── auth.ts
+│   ├── fields.ts
+│   └── agent.ts
+├── types/
+│   ├── common.ts
+│   ├── field.ts
+│   ├── agent.ts
+│   └── recommendation.ts
+├── utils/
+│   ├── request.ts
+│   ├── storage.ts
+│   └── sse.ts
+├── views/
+│   ├── LoginView.vue
+│   ├── DashboardView.vue
+│   ├── FieldsView.vue
+│   ├── FieldDetailView.vue
+│   ├── AgentWorkspaceView.vue
+│   ├── HistoryView.vue
+│   └── TaskDetailView.vue
+├── App.vue
+└── main.ts
+
+# 六、后端目录要求
+
+backend/
+├── app/
+│   ├── api/
+│   │   ├── auth.py
+│   │   ├── fields.py
+│   │   ├── records.py
+│   │   ├── dashboard.py
+│   │   └── agent.py
+│   ├── core/
+│   │   ├── config.py
+│   │   ├── security.py
+│   │   └── responses.py
+│   ├── database/
+│   │   ├── base.py
+│   │   ├── session.py
+│   │   └── init_db.py
+│   ├── models/
+│   │   ├── user.py
+│   │   ├── cotton_field.py
+│   │   ├── farm_record.py
+│   │   ├── agent_task.py
+│   │   ├── agent_step.py
+│   │   └── recommendation.py
+│   ├── schemas/
+│   │   ├── auth.py
+│   │   ├── field.py
+│   │   ├── record.py
+│   │   ├── agent.py
+│   │   └── dashboard.py
+│   ├── agent/
+│   │   ├── state.py
+│   │   ├── graph.py
+│   │   └── nodes/
+│   │       ├── validate_input.py
+│   │       ├── load_context.py
+│   │       ├── retrieve_knowledge.py
+│   │       ├── recommend_actions.py
+│   │       ├── generate_plan.py
+│   │       └── generate_answer.py
+│   ├── services/
+│   │   ├── knowledge_service.py
+│   │   ├── recommendation_service.py
+│   │   ├── llm_service.py
+│   │   ├── task_event_broker.py
+│   │   └── agent_task_service.py
+│   ├── data/
+│   │   ├── cotton_knowledge.json
+│   │   └── farm_sequences.csv
+│   └── main.py
+├── tests/
+│   ├── test_knowledge_service.py
+│   ├── test_recommendation_service.py
+│   └── test_agent_api.py
+├── .env.example
+├── requirements.txt 或 pyproject.toml
+└── run.py
+
+# 七、页面与路由
+
+## 1. 登录页 `/login`
+功能：
+- 用户名和密码表单；
+- Element Plus 表单校验；
+- 登录成功保存 Token 和用户信息；
+- 已登录用户访问 `/login` 时跳转到 `/dashboard`；
+- 未登录访问受保护页面时跳转到 `/login`。
+
+初始化测试账号：
+- 用户名：admin
+- 密码：123456
+
+密码不能明文存储。使用 Python 标准库 hashlib.scrypt 或 PBKDF2 加盐哈希，避免额外密码库兼容问题。
+
+## 2. 数据总览 `/dashboard`
+显示：
+- 棉田数量；
+- 本周 Agent 任务数；
+- 待确认方案数；
+- 中高风险任务数；
+- 最近 7 天咨询趋势折线图；
+- 推荐操作类型分布饼图；
+- 最近 5 条 Agent 任务。
+
+必须包含加载状态、空状态和接口错误状态。
+
+## 3. 棉田管理 `/fields`
+功能：
+- 棉田卡片列表；
+- 新增、编辑、删除；
+- 删除前二次确认；
+- 支持按名称和生育阶段筛选；
+- 点击卡片进入详情。
+
+棉田字段：
+- id
+- name
+- variety
+- area
+- region
+- growthStage
+- sowingDate
+- description
+- createdAt
+- updatedAt
+
+## 4. 棉田详情 `/fields/:id`
+显示：
+- 棉田基础信息；
+- 历史农事记录时间线；
+- 新增农事记录；
+- 删除记录；
+- 一键跳转 Agent 工作台，并自动选择当前棉田。
+
+农事记录字段：
+- id
+- fieldId
+- actionCode
+- actionName
+- operationDate
+- description
+- createdAt
+
+## 5. Agent 工作台 `/agent`
+页面分为三块：
+
+A. 输入区
+- 选择棉田；
+- 生育阶段；
+- 症状多选标签；
+- 天气多选标签；
+- 问题描述；
+- 发起分析按钮；
+- 运行期间禁止重复提交；
+- 提供重置按钮。
+
+预设生育阶段：
+- 播种期
+- 苗期
+- 蕾期
+- 花铃期
+- 吐絮期
+
+预设症状：
+- 叶片发黄
+- 叶片卷曲
+- 叶片斑点
+- 发现蚜虫
+- 发现棉铃虫
+- 植株生长缓慢
+- 落蕾
+- 杂草较多
+
+预设天气：
+- 高温
+- 低温
+- 少雨
+- 连续降雨
+- 大风
+- 正常
+
+B. Agent 执行步骤
+显示以下状态：
+- waiting
+- running
+- success
+- failed
+
+每个步骤显示：
+- 步骤名称；
+- 状态图标；
+- 执行耗时；
+- 可展开查看输入和输出；
+- 失败时显示错误信息。
+
+固定步骤：
+1. 校验咨询信息；
+2. 读取棉田档案；
+3. 获取历史农事记录；
+4. 检索棉花领域知识；
+5. 推荐下一步农事操作；
+6. 生成 7 天农事计划；
+7. 生成最终说明；
+8. 保存任务结果。
+
+C. 结果区
+使用标签页显示：
+- 推荐操作；
+- 7 天计划；
+- 推荐依据；
+- Agent 总结。
+
+推荐操作使用卡片展示：
+- 操作名称；
+- 推荐得分；
+- 建议执行天数；
+- 推荐原因；
+- 来源标签。
+
+提供“接受方案”和“拒绝方案”按钮。
+任务尚未完成前按钮不可用。
+页面必须显示免责声明。
+
+## 6. 历史任务 `/history`
+功能：
+- 分页或基础列表；
+- 按任务状态、棉田和日期筛选；
+- 显示任务状态、创建时间、棉田名称、问题摘要和是否接受；
+- 点击进入详情。
+
+## 7. 任务详情 `/history/:taskId`
+显示：
+- 原始输入；
+- 所有 Agent 步骤；
+- 推荐结果；
+- 7 天计划；
+- 推荐依据；
+- 最终说明；
+- 接受/拒绝状态。
+
+页面刷新后必须可以从后端恢复完整任务状态。
+
+# 八、前端状态管理
+
+## authStore
+至少包含：
+- token
+- userInfo
+- login()
+- logout()
+- loadProfile()
+
+Token 使用 localStorage 持久化。
+
+## fieldStore
+至少包含：
+- fieldList
+- currentField
+- records
+- loading
+- fetchFields()
+- fetchFieldDetail()
+- createField()
+- updateField()
+- deleteField()
+- fetchRecords()
+- createRecord()
+- deleteRecord()
+
+## agentStore
+状态至少包含：
+- taskId
+- taskStatus: idle | running | success | failed
+- steps
+- recommendations
+- farmPlan
+- evidences
+- answer
+- decision: pending | accepted | rejected
+- errorMessage
+
+方法至少包含：
+- createTask()
+- connectTaskEvents()
+- applySseEvent()
+- fetchTaskDetail()
+- acceptTask()
+- rejectTask()
+- resetTask()
+
+AgentStep 类型：
+- stepId
+- name
+- status
+- startTime
+- endTime
+- duration
+- input
+- output
+- errorMessage
+
+必须为 `applySseEvent()` 编写 Vitest 测试，至少覆盖 step_start、step_success、recommendations、completed 和 failed。
+
+# 九、Axios 与鉴权
+
+1. 创建统一 Axios 实例；
+2. baseURL 从 VITE_API_BASE_URL 读取，默认 `http://localhost:8000/api`；
+3. 请求拦截器自动添加 `Authorization: Bearer <token>`；
+4. 响应拦截器统一处理业务错误；
+5. 收到 401 时清理登录状态并跳转登录页；
+6. 后端普通 JSON 接口统一返回：
+   {
+     "code": 0,
+     "message": "success",
+     "data": ...
+   }
+7. 异常返回清晰的 HTTP 状态码和错误信息。
+
+# 十、数据库表
+
+至少实现以下表：
+
+## users
+- id
+- username
+- passwordHash
+- createdAt
+
+## cotton_fields
+- id
+- userId
+- name
+- variety
+- area
+- region
+- growthStage
+- sowingDate
+- description
+- createdAt
+- updatedAt
+
+## farm_records
+- id
+- fieldId
+- actionCode
+- actionName
+- operationDate
+- description
+- createdAt
+
+## agent_tasks
+- id：字符串 UUID
+- userId
+- fieldId
+- description
+- growthStage
+- symptoms：JSON 字符串或 JSON 类型
+- weatherTags：JSON 字符串或 JSON 类型
+- riskLevel：low | medium | high
+- status：pending | running | success | failed
+- decision：pending | accepted | rejected
+- farmPlan：JSON
+- finalAnswer
+- errorMessage
+- createdAt
+- completedAt
+
+## agent_steps
+- id
+- taskId
+- stepId
+- stepName
+- status
+- inputData：JSON
+- outputData：JSON
+- errorMessage
+- duration
+- createdAt
+- updatedAt
+
+## recommendations
+- id
+- taskId
+- actionCode
+- actionName
+- score
+- reason
+- expectedDay
+- sourceType
+- createdAt
+
+设置合理的外键和级联删除行为。
+
+# 十一、API
+
+## Auth
+POST `/api/auth/login`
+GET `/api/auth/profile`
+
+## Dashboard
+GET `/api/dashboard/summary`
+GET `/api/dashboard/task-trend`
+GET `/api/dashboard/action-distribution`
+GET `/api/dashboard/recent-tasks`
+
+## Fields
+GET `/api/fields`
+POST `/api/fields`
+GET `/api/fields/{field_id}`
+PUT `/api/fields/{field_id}`
+DELETE `/api/fields/{field_id}`
+
+## Records
+GET `/api/fields/{field_id}/records`
+POST `/api/fields/{field_id}/records`
+DELETE `/api/records/{record_id}`
+
+## Agent
+POST `/api/agent/tasks`
+GET `/api/agent/tasks`
+GET `/api/agent/tasks/{task_id}`
+GET `/api/agent/tasks/{task_id}/events`
+POST `/api/agent/tasks/{task_id}/accept`
+POST `/api/agent/tasks/{task_id}/reject`
+
+所有数据必须按当前登录用户隔离。不能让一个用户访问其他用户的棉田和任务。
+
+# 十二、Agent 请求和响应
+
+创建任务请求：
+
+{
+  "fieldId": 1,
+  "growthStage": "花铃期",
+  "symptoms": ["叶片卷曲", "发现蚜虫"],
+  "weatherTags": ["高温", "少雨"],
+  "description": "最近部分棉株叶片卷曲，并且发现少量蚜虫，接下来几天应该如何安排？"
+}
+
+创建成功后立即返回：
+{
+  "taskId": "uuid",
+  "status": "running"
+}
+
+后端创建数据库任务后，在后台启动工作流，不要让 POST 请求等待整个工作流结束。
+
+# 十三、SSE 设计
+
+前端使用 `@microsoft/fetch-event-source`，携带 Bearer Token 订阅：
+
+GET `/api/agent/tasks/{task_id}/events`
+
+不要使用无法携带自定义请求头的原生 EventSource。
+
+SSE endpoint 连接后先发送 `task_snapshot`，内容包含当前任务、已存在步骤、推荐结果和计划，解决前端连接晚于任务开始、页面刷新或短暂断线时丢失事件的问题。
+
+支持事件：
+
+1. task_snapshot
+2. step_start
+3. step_success
+4. step_failed
+5. recommendations
+6. farm_plan
+7. evidences
+8. answer
+9. completed
+10. failed
+11. heartbeat
+
+事件数据统一为 JSON，并至少包含：
+- type
+- taskId
+- timestamp
+- data
+
+示例：
+{
+  "type": "step_start",
+  "taskId": "xxx",
+  "timestamp": 1782180000000,
+  "data": {
+    "stepId": "load_field_context",
+    "stepName": "读取棉田档案"
+  }
+}
+
+实现 `TaskEventBroker`：
+- 单进程 V1 可使用 asyncio.Queue；
+- 每个 taskId 维护订阅队列；
+- 事件产生时先持久化数据库，再发布；
+- 没有订阅者时不能影响任务执行；
+- SSE 新连接必须通过数据库快照恢复当前状态；
+- 每 15 秒发送 heartbeat；
+- 任务完成或失败后发送最终事件并结束连接；
+- 客户端断开时清理订阅队列。
+
+# 十四、Agent 工作流
+
+AgentState 至少包含：
+- taskId
+- userId
+- fieldId
+- description
+- growthStage
+- symptoms
+- weatherTags
+- fieldProfile
+- historyRecords
+- knowledgeItems
+- recommendations
+- farmPlan
+- riskLevel
+- finalAnswer
+- errors
+
+节点顺序：
+
+1. validate_input
+2. load_field_context
+3. load_history_records
+4. retrieve_knowledge
+5. recommend_next_actions
+6. generate_farm_plan
+7. generate_final_answer
+8. save_task_result
+
+每个节点必须：
+- 更新对应 agent_steps 记录；
+- 发布 step_start；
+- 成功后发布 step_success；
+- 失败后记录错误、发布 step_failed 和 failed；
+- 统计执行耗时；
+- 输出结构化数据；
+- 不允许吞掉异常。
+
+为了演示实时效果，可以在开发环境为每个节点增加 200～500ms 的可配置延迟，但默认总任务时间不要过长。延迟配置写入环境变量，不要硬编码在业务逻辑中。
+
+# 十五、本地知识检索
+
+文件：`backend/app/data/cotton_knowledge.json`
+
+至少准备 10 条结构化知识，覆盖：
+- 棉蚜监测；
+- 棉铃虫监测；
+- 叶片发黄；
+- 叶片卷曲；
+- 叶片斑点；
+- 植株生长缓慢；
+- 落蕾；
+- 杂草监测；
+- 高温少雨；
+- 连续降雨后的田间检查。
+
+每条结构：
+- id
+- title
+- growthStages
+- symptoms
+- weatherTags
+- recommendedActions
+- content
+- source
+
+检索得分：
+- 每匹配一个症状：+3；
+- 生育阶段匹配：+2；
+- 每匹配一个天气标签：+1；
+- 问题描述命中标题或关键词：+1。
+
+返回分数最高的 3 条；分数相同按 id 稳定排序。
+结果必须包含 matchScore 和 matchReasons，供前端依据抽屉展示。
+
+# 十六、农事序列数据与推荐器
+
+文件：`backend/app/data/farm_sequences.csv`
+
+至少准备 60 条序列或足够形成 60 个 sequence_id 的示例数据，每条序列 4～8 个步骤。
+
+字段：
+- sequence_id
+- step
+- action_code
+- action_name
+- growth_stage
+
+推荐器不要返回随机结果。
+
+候选操作来自：
+1. 当前用户最后一个历史操作之后的转移操作；
+2. 检索知识中的 recommendedActions；
+3. 如果用户无历史记录，则使用当前生育阶段的全局高频操作。
+
+基础转移得分：
+transitionScore = 某操作在当前操作之后出现的次数 / 当前操作作为前序操作的总次数
+
+生育阶段得分：
+- 候选操作在当前生育阶段出现过：1
+- 否则：0
+
+知识匹配得分：
+- 候选操作被 Top-3 知识推荐：1
+- 否则：0
+
+最终得分：
+finalScore =
+0.5 * transitionScore
++ 0.3 * growthStageScore
++ 0.2 * knowledgeMatchScore
+
+要求：
+- 得分保留两位小数；
+- 按 finalScore 降序；
+- 相同得分按 actionCode 稳定排序；
+- 返回 Top-3；
+- 每项包含 actionCode、actionName、score、expectedDay、reason、sourceType；
+- 若候选不足 3 个，使用当前生育阶段高频操作补齐；
+- 必须避免推荐与最近一次操作完全相同的无意义重复操作，除非知识明确要求“复查”。
+
+推荐器单元测试至少覆盖：
+- 有历史操作；
+- 无历史操作；
+- 候选不足；
+- 稳定排序；
+- 得分范围 0～1。
+
+# 十七、7 天计划
+
+使用规则生成，不依赖大模型。
+
+建议天数映射示例：
+- PEST_SAMPLE：第 1 天
+- COUNT_DENSITY：第 2 天
+- FIELD_SCOUTING：第 2 天
+- RECHECK_LEAF：第 4 天
+- GROWTH_ASSESSMENT：第 4 天
+- UPDATE_RECORD：第 7 天
+- WEED_MONITOR：第 2 天
+
+根据 Top-3 推荐生成计划，并固定追加第 7 天“更新棉田记录并复盘”的任务。
+
+每个计划项包含：
+- day
+- actionCode
+- actionName
+- reason
+- status：pending
+
+计划按 day 升序，不能出现重复操作。
+
+# 十八、风险等级
+
+仅用于展示，不给出具体药物处置。
+
+规则示例：
+- 同时出现“发现棉铃虫”和“落蕾”：high；
+- 同时出现“发现蚜虫”和“叶片卷曲”：medium；
+- 症状数量 >= 3：medium；
+- 其他情况：low。
+
+前端用不同标签显示风险等级，并始终显示人工确认提示。
+
+# 十九、最终说明生成
+
+实现 `LLMService`：
+
+环境变量：
+- LLM_API_KEY
+- LLM_BASE_URL
+- LLM_MODEL
+- LLM_TIMEOUT
+
+如果配置完整，使用 httpx 调用 OpenAI 兼容的 Chat Completions 接口，要求模型只根据结构化上下文生成简短中文说明，不能扩展具体药物或剂量。
+
+如果：
+- 未配置 API Key；
+- 请求超时；
+- 返回格式错误；
+- 服务异常；
+
+必须捕获异常并自动使用模板生成，例如：
+
+“根据当前棉田处于花铃期，结合叶片卷曲、发现蚜虫等症状以及最近的农事记录，系统建议优先进行增加虫情采样、记录虫口密度和复查叶片等操作。未来 7 天应以监测、记录和复查为主。以上结果仅供辅助参考，实际操作需由专业人员确认。”
+
+不能因为大模型不可用导致任务失败。
+
+# 二十、初始化数据
+
+首次启动时自动：
+1. 创建 SQLite 数据库；
+2. 创建表；
+3. 创建 admin 用户；
+4. 创建至少 3 个示例棉田；
+5. 为示例棉田创建合理的农事记录；
+6. 不重复插入初始化数据。
+
+示例棉田：
+- 1 号试验田，新陆早 78 号，阿克苏，花铃期；
+- 2 号示范田，新陆中 82 号，库尔勒，蕾期；
+- 3 号观察田，新陆早 61 号，石河子，苗期。
+
+# 二十一、UI 与交互要求
+
+1. 使用 Element Plus，整体风格简洁、专业、农业科技感；
+2. 不要堆砌渐变和大面积动画；
+3. 桌面端优先，适配 1280px 以上屏幕；
+4. 页面内容区域最大宽度合理，不要全部贴边；
+5. Agent 步骤区要有明显的运行状态；
+6. 推荐得分使用进度条或数值标签；
+7. 7 天计划使用时间线；
+8. 推荐依据使用抽屉；
+9. ToolResultDrawer 对 JSON 做格式化展示；
+10. Dashboard 使用 ECharts，并在组件卸载时正确 dispose；
+11. 表格、列表和对话框均处理 loading、empty 和 error；
+12. 不使用假的百分比提升或性能数据；
+13. 页面底部或结果区显示免责声明。
+
+# 二十二、开发环境与跨域
+
+后端：
+- 默认 `http://localhost:8000`
+- 开放开发环境 CORS：`http://localhost:5173`
+
+前端：
+- 默认 `http://localhost:5173`
+- `.env.example` 提供 VITE_API_BASE_URL
+
+# 二十三、测试与质量
+
+后端：
+- pytest 至少 3 个测试文件；
+- 重点测试知识检索、推荐器和创建 Agent 任务接口；
+- 测试使用独立 SQLite 测试数据库；
+- 不依赖真实大模型接口。
+
+前端：
+- `npm run type-check` 通过；
+- `npm run build` 通过；
+- Vitest 测试 Agent SSE 状态更新逻辑；
+- 不能存在明显 TypeScript any 滥用；
+- 处理定时器、SSE 连接和 ECharts 实例的销毁。
+
+后端质量：
+- 启动时无明显 warning；
+- API 参数校验有效；
+- 数据库 session 正确关闭；
+- 后台任务异常可追踪；
+- 不把 Token、密码或 API Key 写进仓库。
+
+# 二十四、README
+
+根目录 README 必须包含：
+1. 项目介绍；
+2. 功能截图占位说明；
+3. 技术栈；
+4. 项目结构；
+5. Windows PowerShell 启动步骤；
+6. macOS/Linux 启动步骤；
+7. 后端环境变量说明；
+8. 前端环境变量说明；
+9. 测试账号；
+10. API 文档地址；
+11. 无大模型配置时的降级行为；
+12. 运行测试和构建命令；
+13. V1 已实现功能；
+14. 后续可扩展方向，但不要假装已经实现。
+
+后端启动示例：
+- 创建虚拟环境；
+- 安装依赖；
+- 复制 `.env.example`；
+- 运行 `python run.py` 或 `uvicorn app.main:app --reload`。
+
+前端启动示例：
+- `npm install`
+- 复制 `.env.example`
+- `npm run dev`
+
+# 二十五、API 文档
+
+在 `docs/api.md` 中记录：
+- 登录；
+- 棉田 CRUD；
+- 农事记录；
+- Agent 创建任务；
+- SSE 事件；
+- 任务详情；
+- 接受和拒绝方案；
+- 统一响应格式；
+- 错误码。
+
+FastAPI 自带 Swagger 地址也要在 README 中说明。
+
+# 二十六、验收标准
+
+完成后必须满足：
+
+1. admin/123456 可以登录；
+2. 可以查看、创建、编辑、删除棉田；
+3. 可以给棉田添加和删除农事记录；
+4. 可以发起 Agent 任务；
+5. Agent 至少显示 8 个执行步骤；
+6. 前端通过 SSE 实时更新步骤状态；
+7. 连接晚于任务开始时可以通过 snapshot 恢复；
+8. 页面刷新后可以恢复任务详情；
+9. 返回真实计算的 Top-3 推荐，不是随机 Mock；
+10. 显示 7 天计划和推荐依据；
+11. 可以接受或拒绝方案；
+12. Dashboard 图表来自数据库统计；
+13. 无 LLM_API_KEY 时仍可完整演示；
+14. `pytest` 通过；
+15. 前端 type-check、test 和 build 通过；
+16. README 启动说明可执行；
+17. 不包含图片识别、向量数据库、Redis、MCP、多 Agent 等超出 V1 范围的功能。
+
+# 二十七、执行方式
+
+请按以下顺序直接实施，不要只输出计划：
+
+阶段 1：检查仓库并初始化前后端工程；
+阶段 2：实现后端数据库、鉴权、棉田和记录 CRUD；
+阶段 3：实现知识检索、序列推荐器和单元测试；
+阶段 4：实现 Agent 工作流、任务持久化和 SSE；
+阶段 5：实现前端登录、布局、棉田管理；
+阶段 6：实现 Agent 工作台、Pinia 状态和 SSE 展示；
+阶段 7：实现历史任务、Dashboard 和交互细节；
+阶段 8：运行后端测试、前端测试、类型检查和构建；
+阶段 9：修复全部可复现错误；
+阶段 10：补充 README、API 文档和最终实现总结。
+
+最终回复中请提供：
+1. 已完成的功能列表；
+2. 关键目录说明；
+3. 启动命令；
+4. 测试结果；
+5. 尚未实现且属于后续版本的内容；
+6. 你在实现过程中做出的必要兼容性调整。
+
+现在开始检查当前仓库并直接实现。
