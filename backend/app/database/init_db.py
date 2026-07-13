@@ -30,6 +30,8 @@ def ensure_compatible_schema() -> None:
             conn.execute(text("ALTER TABLE recommendations ADD COLUMN scoreBreakdown TEXT DEFAULT '{}'"))
         if "reasonItems" not in columns:
             conn.execute(text("ALTER TABLE recommendations ADD COLUMN reasonItems TEXT DEFAULT '[]'"))
+        if "candidateSources" not in columns:
+            conn.execute(text("ALTER TABLE recommendations ADD COLUMN candidateSources TEXT DEFAULT '[]'"))
 
 
 def seed_data(db: Session) -> None:

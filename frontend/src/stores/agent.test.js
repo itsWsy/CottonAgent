@@ -9,9 +9,10 @@ describe('agent store applySseEvent', () => {
     const store = useAgentStore()
     store.applySseEvent({ type: 'step_start', taskId: 't1', timestamp: 1, data: { stepId: 'validate_input', stepName: '校验咨询信息' } })
     expect(store.steps[0].status).toBe('running')
-    store.applySseEvent({ type: 'step_success', taskId: 't1', timestamp: 2, data: { stepId: 'validate_input', duration: 10, output: { valid: true } } })
+    store.applySseEvent({ type: 'step_success', taskId: 't1', timestamp: 2, data: { stepId: 'validate_input', duration: 10, output: { toolCall: { toolName: 'consultation_validator' } }, summary: '已校验' } })
     expect(store.steps[0].status).toBe('success')
     expect(store.steps[0].duration).toBe(10)
+    expect(store.completedToolCalls).toHaveLength(1)
   })
 
   it('handles recommendations and completed', () => {

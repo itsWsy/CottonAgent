@@ -16,5 +16,8 @@ class AgentState:
     recommendations: list[dict] = field(default_factory=list)
     farmPlan: list[dict] = field(default_factory=list)
     riskLevel: str = "low"
+    riskReason: str = ""
+    safetyConstraints: list[str] = field(default_factory=list)
+    toolCalls: list[dict] = field(default_factory=list)
     finalAnswer: str = ""
     errors: list[str] = field(default_factory=list)

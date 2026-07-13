@@ -22,3 +22,16 @@ def test_create_agent_task():
     )
     assert resp.status_code == 200
     assert resp.json()["data"]["status"] == "running"
+
+
+def test_list_agent_tasks_supports_pagination_and_filters():
+    init_db()
+    client = TestClient(app)
+    token = client.post("/api/auth/login", json={"username": "admin", "password": "123456"}).json()["data"]["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = client.get("/api/agent/tasks", headers=headers, params={"page": 1, "pageSize": 5, "status": "running", "keyword": "观察"})
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert set(data.keys()) == {"items", "total", "page", "pageSize"}
+    assert data["page"] == 1
+    assert data["pageSize"] == 5

@@ -5,7 +5,7 @@
       <el-menu router :default-active="$route.path">
         <el-menu-item index="/dashboard">数据总览</el-menu-item>
         <el-menu-item index="/fields">棉田管理</el-menu-item>
-        <el-menu-item index="/agent">Agent 工作台</el-menu-item>
+        <el-menu-item index="/agent">工作台</el-menu-item>
         <el-menu-item index="/history">历史任务</el-menu-item>
       </el-menu>
     </el-aside>

@@ -21,6 +21,8 @@ class AgentStepOut(BaseModel):
     duration: int = 0
     input: Any = None
     output: Any = None
+    toolCall: dict | None = None
+    summary: str = ""
     errorMessage: str = ""
 
 
@@ -32,6 +34,7 @@ class RecommendationOut(BaseModel):
     expectedDay: int
     reason: str
     reasonItems: list[str] = []
+    candidateSources: list[str] = []
     sourceType: str
 
 
@@ -45,6 +48,8 @@ class AgentTaskOut(BaseModel):
     weatherTags: list[str]
     riskLevel: str
     riskReason: str = ""
+    safetyConstraints: list[str] = []
+    agentTrace: list[dict] = []
     status: str
     decision: str
     farmPlan: list[dict]

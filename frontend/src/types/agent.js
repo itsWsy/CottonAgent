@@ -8,6 +8,8 @@
  * @property {number} duration
  * @property {unknown} input
  * @property {unknown} output
+ * @property {Object|null} toolCall
+ * @property {string} summary
  * @property {string} errorMessage
  *
  * @typedef {Object} SseEvent

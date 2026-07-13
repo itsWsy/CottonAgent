@@ -1,8 +1,9 @@
 import asyncio
+from datetime import date, datetime, time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.responses import ok
@@ -28,13 +29,40 @@ def create_task(payload: AgentTaskCreate, background: BackgroundTasks, db: Sessi
 
 
 @router.get("/tasks")
-def list_tasks(status: str = "", fieldId: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_tasks(
+    status: str = "",
+    fieldId: int | None = None,
+    riskLevel: str = "",
+    decision: str = "",
+    keyword: str = "",
+    dateFrom: date | None = None,
+    dateTo: date | None = None,
+    page: int = 1,
+    pageSize: int = 10,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    page = max(page, 1)
+    pageSize = min(max(pageSize, 1), 100)
     stmt = select(AgentTask).where(AgentTask.userId == user.id).order_by(AgentTask.createdAt.desc())
     if status:
         stmt = stmt.where(AgentTask.status == status)
     if fieldId:
         stmt = stmt.where(AgentTask.fieldId == fieldId)
-    return ok([task_to_detail(t) for t in db.scalars(stmt).all()])
+    if riskLevel:
+        stmt = stmt.where(AgentTask.riskLevel == riskLevel)
+    if decision:
+        stmt = stmt.where(AgentTask.decision == decision)
+    if keyword:
+        stmt = stmt.where(AgentTask.description.contains(keyword))
+    if dateFrom:
+        stmt = stmt.where(AgentTask.createdAt >= datetime.combine(dateFrom, time.min))
+    if dateTo:
+        stmt = stmt.where(AgentTask.createdAt <= datetime.combine(dateTo, time.max))
+
+    total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
+    tasks = db.scalars(stmt.offset((page - 1) * pageSize).limit(pageSize)).all()
+    return ok({"items": [task_to_detail(t) for t in tasks], "total": total, "page": page, "pageSize": pageSize})
 
 
 @router.get("/tasks/{task_id}")

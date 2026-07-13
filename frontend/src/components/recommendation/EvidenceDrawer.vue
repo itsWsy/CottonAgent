@@ -12,7 +12,9 @@
           </template>
           <p>{{ item.content }}</p>
           <div class="tags">
-            <el-tag v-for="reason in item.matchReasons" :key="reason">{{ reason }}</el-tag>
+            <el-tag v-for="reason in item.matchReasons" :key="reason" type="warning" effect="light">
+              {{ reason }}
+            </el-tag>
           </div>
           <p class="source">来源：{{ item.source }}</p>
         </el-card>

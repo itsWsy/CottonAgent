@@ -13,14 +13,23 @@ request.interceptors.request.use((config) => {
 })
 
 request.interceptors.response.use(
-  (response) => response.data.data,
+  (response) => {
+    const body = response.data
+    if (body && typeof body === 'object' && 'code' in body) {
+      if (body.code === 0) return body.data
+      return Promise.reject(new Error(body.message || '请求失败'))
+    }
+    return body
+  },
   (error) => {
-    if (error.response?.status === 401) {
+    if ([401, 403].includes(error.response?.status)) {
       storage.removeToken()
       storage.removeUser()
       if (location.pathname !== '/login') location.href = '/login'
     }
-    return Promise.reject(new Error(error.response?.data?.message || error.response?.data?.detail || '请求失败'))
+    const serverMessage = error.response?.data?.message || error.response?.data?.detail
+    const networkMessage = error.code === 'ECONNABORTED' ? '请求超时，请检查后端服务是否正常运行' : '无法连接到后端服务'
+    return Promise.reject(new Error(serverMessage || error.message || networkMessage))
   }
 )
 

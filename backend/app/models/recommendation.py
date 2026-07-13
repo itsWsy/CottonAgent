@@ -17,6 +17,7 @@ class Recommendation(Base):
     reason: Mapped[str] = mapped_column(Text)
     scoreBreakdown: Mapped[str] = mapped_column(Text, default="{}")
     reasonItems: Mapped[str] = mapped_column(Text, default="[]")
+    candidateSources: Mapped[str] = mapped_column(Text, default="[]")
     expectedDay: Mapped[int] = mapped_column(Integer)
     sourceType: Mapped[str] = mapped_column(String(50))
     createdAt: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

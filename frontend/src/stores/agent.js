@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
-import { acceptTaskApi, createTaskApi, getTaskApi, rejectTaskApi } from '../api/agent'
+import { acceptTaskApi, createTaskApi, getTaskApi, listTasksApi, rejectTaskApi } from '../api/agent'
 import { connectSse } from '../utils/sse'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
+const LAST_INPUT_KEY = 'cotton_pilot_last_agent_input'
 
 export const FIXED_STEPS = [
   ['validate_input', '校验咨询信息'],
@@ -24,9 +25,22 @@ export const createInitialSteps = () => FIXED_STEPS.map(([stepId, name]) => ({
   duration: 0,
   input: null,
   output: null,
+  toolCall: null,
   summary: '',
   errorMessage: ''
 }))
+
+function readLastInput() {
+  try {
+    return JSON.parse(localStorage.getItem(LAST_INPUT_KEY) || 'null')
+  } catch {
+    return null
+  }
+}
+
+function writeLastInput(payload) {
+  localStorage.setItem(LAST_INPUT_KEY, JSON.stringify(payload))
+}
 
 export const useAgentStore = defineStore('agent', {
   state: () => ({
@@ -40,9 +54,13 @@ export const useAgentStore = defineStore('agent', {
     decision: 'pending',
     riskLevel: '',
     riskReason: '',
+    safetyConstraints: [],
+    agentTrace: [],
     errorMessage: '',
     sseStatus: 'idle',
     sseMessage: '',
+    lastInput: readLastInput(),
+    recentRunningTask: null,
     closeSse: null
   }),
   getters: {
@@ -52,16 +70,37 @@ export const useAgentStore = defineStore('agent', {
     },
     currentRunningStep(state) {
       return state.steps.find((step) => step.status === 'running') || null
+    },
+    completedToolCalls(state) {
+      return state.steps.map((step) => step.toolCall).filter(Boolean)
+    },
+    canRetry(state) {
+      return state.taskStatus === 'failed' && Boolean(state.lastInput)
     }
   },
   actions: {
     async createTask(payload) {
-      this.resetTask()
+      this.lastInput = { ...payload }
+      writeLastInput(this.lastInput)
+      this.resetTask({ keepLastInput: true })
       const data = await createTaskApi(payload)
       this.taskId = data.taskId
       this.taskStatus = data.status
       this.connectTaskEvents(data.taskId)
       return data
+    },
+    async retryLastTask() {
+      if (!this.lastInput) throw new Error('暂无可重试的原始输入')
+      return this.createTask(this.lastInput)
+    },
+    async fetchRecentRunningTask() {
+      const result = await listTasksApi({ status: 'running', page: 1, pageSize: 1 })
+      this.recentRunningTask = result.items?.[0] || null
+      return this.recentRunningTask
+    },
+    async restoreTask(taskId) {
+      await this.fetchTaskDetail(taskId)
+      if (this.taskStatus === 'running') this.connectTaskEvents(taskId)
     },
     connectTaskEvents(taskId) {
       if (this.closeSse) this.closeSse()
@@ -105,6 +144,8 @@ export const useAgentStore = defineStore('agent', {
         this.decision = data.decision || 'pending'
         this.riskLevel = data.riskLevel || ''
         this.riskReason = data.riskReason || ''
+        this.safetyConstraints = data.safetyConstraints || []
+        this.agentTrace = data.agentTrace || []
         this.errorMessage = data.errorMessage || ''
         if (this.taskStatus !== 'running') this.closeTaskStream()
         return
@@ -114,7 +155,16 @@ export const useAgentStore = defineStore('agent', {
         this.sseMessage = '实时事件流正常'
       }
       if (event.type === 'step_start') this.patchStep(data.stepId, { status: 'running', startTime: new Date(event.timestamp).toISOString() })
-      if (event.type === 'step_success') this.patchStep(data.stepId, { status: 'success', endTime: new Date(event.timestamp).toISOString(), duration: data.duration || 0, output: data.output, summary: data.summary || '' })
+      if (event.type === 'step_success') {
+        this.patchStep(data.stepId, {
+          status: 'success',
+          endTime: new Date(event.timestamp).toISOString(),
+          duration: data.duration || 0,
+          output: data.output,
+          toolCall: data.output?.toolCall || null,
+          summary: data.summary || ''
+        })
+      }
       if (event.type === 'step_failed') this.patchStep(data.stepId, { status: 'failed', errorMessage: data.errorMessage || '步骤失败' })
       if (event.type === 'recommendations') this.recommendations = data
       if (event.type === 'farm_plan') this.farmPlan = data
@@ -125,6 +175,8 @@ export const useAgentStore = defineStore('agent', {
         this.decision = data.decision || this.decision
         this.riskLevel = data.riskLevel || this.riskLevel
         this.riskReason = data.riskReason || this.riskReason
+        this.safetyConstraints = data.safetyConstraints || this.safetyConstraints
+        this.agentTrace = data.agentTrace || this.completedToolCalls
         this.sseStatus = 'closed'
         this.sseMessage = '任务已完成，实时连接已关闭'
         this.closeTaskStream()
@@ -158,7 +210,7 @@ export const useAgentStore = defineStore('agent', {
       if (this.closeSse) this.closeSse()
       this.closeSse = null
     },
-    resetTask() {
+    resetTask(options = {}) {
       this.closeTaskStream()
       this.taskId = ''
       this.taskStatus = 'idle'
@@ -170,9 +222,12 @@ export const useAgentStore = defineStore('agent', {
       this.decision = 'pending'
       this.riskLevel = ''
       this.riskReason = ''
+      this.safetyConstraints = []
+      this.agentTrace = []
       this.errorMessage = ''
       this.sseStatus = 'idle'
       this.sseMessage = ''
+      if (!options.keepLastInput) this.lastInput = readLastInput()
     }
   }
 })

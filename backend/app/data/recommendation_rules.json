@@ -1,0 +1,21 @@
+{
+  "growthStageOrder": ["播种期", "苗期", "蕾期", "花铃期", "吐絮期"],
+  "weatherActionBoosts": {
+    "连续降雨": ["DRAINAGE_CHECK", "FIELD_SCOUTING"],
+    "高温": ["RECHECK_LEAF", "GROWTH_ASSESSMENT", "PEST_SAMPLE"],
+    "少雨": ["RECHECK_LEAF", "GROWTH_ASSESSMENT"],
+    "大风": ["FIELD_SCOUTING"]
+  },
+  "symptomActionBoosts": {
+    "发现蚜虫": ["PEST_SAMPLE", "COUNT_DENSITY"],
+    "发现棉铃虫": ["PEST_SAMPLE", "BOLL_CHECK"],
+    "叶片卷曲": ["RECHECK_LEAF", "PEST_SAMPLE"],
+    "叶片斑点": ["RECHECK_LEAF", "FIELD_SCOUTING"],
+    "叶片发黄": ["GROWTH_ASSESSMENT", "FIELD_SCOUTING"],
+    "植株生长缓慢": ["GROWTH_ASSESSMENT", "FIELD_SCOUTING"],
+    "落蕾": ["BOLL_CHECK", "GROWTH_ASSESSMENT"],
+    "杂草较多": ["WEED_MONITOR"]
+  },
+  "excludedTopActions": ["UPDATE_RECORD"],
+  "reviewActions": ["RECHECK_LEAF", "FIELD_SCOUTING", "DRAINAGE_CHECK"]
+}
